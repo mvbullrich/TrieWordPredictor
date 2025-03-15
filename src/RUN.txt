@@ -1,0 +1,258 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+struct node {
+    char character;
+    struct node* next;
+    int end;
+    char* word;
+    struct node* down;
+};
+
+struct keysPredict {
+    struct node* first;
+    int totalKeys;
+    int totalWords;
+};
+
+// Function to duplicate strings (simulating strDup)
+int strLen(char* src) {
+    int contador = 0;
+    while(src[contador] != '\0'){
+        contador++;
+    }
+    return contador;
+}
+
+char* strDup(char* src) {
+    int largo = strLen(src);
+    char* duplicado = (char*)malloc(sizeof(char) * (largo + 1));
+    for (int i = 0; i < largo; i++){
+        duplicado[i] = src[i];
+    }
+    duplicado[largo] = '\0';
+    return duplicado;
+}
+
+struct node* findNodeInLevel(struct node** list, char character) {
+    struct node* p = *list;
+    while(p != NULL){
+        if(p->character == character){
+            return p;
+        }
+        p = p->next;
+    }
+    return NULL;
+}
+
+void keysPredictRunRec(struct node* n, char** lista, int* k) {
+    if (n == NULL) return; // caso base
+
+    if (n->end == 1) { // Si es el final de una palabra
+        lista[*k] = strDup(n->word); // guardo la palabra en la lista
+        printf("Adding word to list: %s at index %d\n", n->word, *k);
+        (*k)++; // incremento el contador
+    }
+
+    // llamadas recursivas
+    keysPredictRunRec(n->down, lista, k);
+    keysPredictRunRec(n->next, lista, k);
+}
+
+int keysPredictCountWordAux(struct node* n) {
+    if (n == NULL) return 0; // caso base
+
+    int count = 0; // creo variable contador
+    if (n->end == 1) {
+        count++; // incremento el contador en 1
+        printf("Found word ending: %s\n", n->word);
+    }
+
+    // Sumar recursivamente desde los n- down y next
+    count += keysPredictCountWordAux(n->down);
+    count += keysPredictCountWordAux(n->next);
+
+    return count;
+}
+
+char** keysPredictRun(struct keysPredict* kt, char* partialWord, int* wordsCount) {
+    int largo = strLen(partialWord); // calcular largo del prefijo
+    struct node* n = kt->first;
+    struct node* prev = NULL;
+    *wordsCount = 0; //quiero que el puntero apunte al valor 0
+
+    printf("Prefijo: %s\n", partialWord);
+    printf("Largo del prefijo: %d\n", largo);
+
+    // Aca queremos buscar el prefijo
+    for (int i = 0; i < largo; i++) {
+        printf("Buscando carácter '%c' en el nivel\n", partialWord[i]);
+        n = findNodeInLevel(&n, partialWord[i]); // buscar la letra en el nivel
+
+        if (n == NULL) { // No se encontró ninguna palabra para el prefijo
+            printf("No se encontró ninguna palabra para el prefijo: %s\n", partialWord);
+            *wordsCount = 0;
+            return NULL;
+        }
+
+        // Si n no es NULL, mostramos el carácter encontrado
+        printf("Encontrado carácter '%c'\n", n->character);
+        prev = n;
+        n = n->down; // Bajamos al siguiente nivel
+    }
+
+    *wordsCount = keysPredictCountWordAux(n); // saber la cantidad de palabras que hay
+    printf("WordsCount: %d\n", *wordsCount);
+    char** listaPalabras = (char**) malloc((*wordsCount + 1) * sizeof(char*)); // creo la lista
+    if (listaPalabras == NULL) { // Manejo de error por si hay algún problema al crear la lista
+        *wordsCount = 0;
+        return NULL;
+    }
+
+    int k = 0; //para contar
+    if(prev != NULL && prev->end == 1) { // esto es por si el prefijo es una palabra
+        listaPalabras[k] = strDup(prev->word);
+        k++;
+        (*wordsCount)++;
+        printf("WordsCount: %d\n", *wordsCount);
+    }
+
+    keysPredictRunRec(n, listaPalabras, &k); // llamamos a la función recursiva
+
+    return listaPalabras;
+}
+
+struct node* addSortedNewNodeInLevel(struct node** list, char character) {
+    struct node* nuevoNodo = (struct node*)malloc(sizeof(struct node));
+    nuevoNodo->character = character;
+    nuevoNodo->next = NULL;
+    nuevoNodo->end = 0;
+    nuevoNodo->word = NULL;
+    nuevoNodo->down = NULL;
+
+    if (*list == NULL) { //si lista está vacía
+        *list = nuevoNodo;
+        return *list;
+    }
+    if ((*list)->character > character) { //si tenemos que meter el nuevo nodo al principio
+        nuevoNodo->next = *list;
+        *list = nuevoNodo;
+        return *list;
+    }
+
+    struct node* actual = *list;
+    struct node* anterior = NULL;
+
+    while(actual != NULL && actual->character < character) {
+        anterior = actual;
+        actual = actual->next;
+    }
+
+    if (actual != NULL && actual->character == character) {
+        free(nuevoNodo); // El carácter ya existe, liberar el nuevo nodo
+        return *list;
+    }
+    
+    anterior->next = nuevoNodo;
+    nuevoNodo->next = actual;
+
+    return nuevoNodo;
+}
+
+void keysPredictAddWord(struct keysPredict* kt, char* word) { //word es una palabra entera
+    struct node* curr = kt->first;
+    struct node* prev = NULL;
+    int largoPalabra = strLen(word);
+    int contador = 0;
+    int i = 0;
+
+    if (largoPalabra == 0) {
+        return;
+    }
+
+    while(i < largoPalabra) {
+        if (curr == NULL) {
+            curr = addSortedNewNodeInLevel(&(curr), word[i]); //apunta a la primera letra de la lista
+            if (prev == NULL) {
+                kt->first = curr;  //conectar nodo con la lista
+            } else {
+                prev->down = curr; //conecta dos nodos
+            }
+            kt->totalKeys++;
+        } else {
+            struct node* res = findNodeInLevel(&(curr), word[i]);
+            if(res == NULL) {
+                struct node* vr = addSortedNewNodeInLevel(&(curr), word[i]); // si da error strct node
+                
+                if(prev != NULL) {
+                    prev->down = curr;
+                } else {
+                    kt->first = vr;
+                }
+                curr = findNodeInLevel(&(curr), word[i]);
+                kt->totalKeys++;
+            } else {
+                curr = res;
+                contador++;
+            }
+        }
+        prev = curr;
+        curr = curr->down;
+        i++;
+    }
+    
+    if (prev->end == 1 && contador == largoPalabra) {
+        return;
+    } else {
+        prev->word = strDup(word);
+        kt->totalWords++;
+        prev->end = 1;
+    }
+}  
+
+void freeNode(struct node* n) {
+    if (n == NULL) return;
+    freeNode(n->next);
+    freeNode(n->down);
+    free(n->word);
+    free(n);
+}
+
+void freeTrie(struct node* root) {
+    freeNode(root);
+}
+
+int main() {
+    struct keysPredict* kt = (struct keysPredict*)malloc(sizeof(struct keysPredict));
+    if (kt == NULL) {
+        printf("Error al asignar memoria para keysPredict.\n");
+        return -1; // Retornar en caso de error de memoria
+    }
+    kt->first = NULL;
+    kt->totalKeys = 0;
+    kt->totalWords = 0;
+
+    // Usar keysPredictAddWord para agregar palabras
+    keysPredictAddWord(kt, "hola");
+    keysPredictAddWord(kt, "hey");
+    keysPredictAddWord(kt, "helium");
+    keysPredictAddWord(kt, "hotel");
+    keysPredictAddWord(kt, "habitacion");
+
+    char* prefijo = "hey";
+    int palabrasEncontradas = 0;
+
+    char** resultados = keysPredictRun(kt, prefijo, &palabrasEncontradas);
+
+    printf("Palabras que comienzan con '%s':\n", prefijo);
+    for (int i = 0; i < palabrasEncontradas; i++) {
+        printf("%s\n", resultados[i]);
+        free(resultados[i]); // Liberar cada palabra
+    }
+    free(resultados); // Liberar la lista de palabras
+    freeTrie(kt->first); // Liberar el trie
+    free(kt); // Liberar la estructura keysPredict
+
+    return 0;
+}
